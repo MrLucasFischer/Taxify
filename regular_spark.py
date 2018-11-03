@@ -1,10 +1,18 @@
 import pyspark
 import traceback
+from datetime import datetime
+import calendar
 
 sc = pyspark.SparkContext('local[*]') #Create spark context
 
 #PU/DO zone ids range from 1 to 265, see taxi_zone_lookup.csv
 #date(position 2, maybe split datetime into weekday and time), PU_ID (position 7), DO_ID (position 8), totalammount (position 16)
+
+#Para converter a data que vem no ficheiro csv para um weekday fazer o seuginte
+#date_str = data que vem do ficheiro
+#date_obj = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+#weekday = lower(calendar.day_name[date_obj.weekday()])
+
 
 #Main implementation
 

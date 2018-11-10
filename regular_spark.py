@@ -2,6 +2,7 @@ import pyspark
 import traceback
 from datetime import datetime
 import calendar
+import time
 
 sc = pyspark.SparkContext('local[*]') #Create spark context
 
@@ -16,12 +17,41 @@ sc = pyspark.SparkContext('local[*]') #Create spark context
 
 #Main implementation
 
-#ESTA PARTE FICA PARA DEPOIS, POR ENQUANTO USAMOS UNS DADOS QUAIS-QUERES DEPOIS E QUE NOS PREOCUPAMOS COM USER INTERFACE
 def get_user_options():
     pickup_correct = False
     dropoff_correct = False
+    weekday_correct = False
+    time_correct = False
     pickup_id = ""
     dropoff_id = ""
+    weekday = ""
+    hour = ""
+    minutes = ""                                                
+
+    #Continue asking the user until he/she gives us a weekday
+    while(not weekday_correct):
+        weekday = input("Please insert you weekday (1- Monday, 2- Tuesday, ..., 7- Sunday):")
+        try:
+            if(int(weekday) >= 1 and int(weekday) <= 7):
+                weekday_correct = True
+        except:
+            #User didn't sent us a number
+            print("Please insert a number between 1 - 7\n")
+
+    #Continue asking the user until he/she gives us an hour
+    while(not time_correct):
+        time_input = input("Please insert the desired time (hh:mm):")
+        try:
+            user_time = time.strptime(time_input, '%H:%M') # Check time is in proper format
+            time_correct = True
+            hour = user_time.tm_hour #Get hour
+            minutes = user_time.tm_min #Get minutes
+
+        except:
+            #User didn't sent us a number
+            print("Please insert a time in the format hh:mm where hh (00-23) and mm (00:59) \n")    
+
+
 
     #Continue asking the user until he/she gives us a number between 1 and 265
     while(not pickup_correct):
@@ -32,6 +62,7 @@ def get_user_options():
         except:
             #User didn't sent us a number
             print("Please insert a number between 1 - 265\n")
+
         
 
     #Continue asking the user until he/she gives us a number between 1 and 265
@@ -44,24 +75,27 @@ def get_user_options():
             #User didn't sent us a number
             print("Please insert a number between 1 - 265\n")
 
-    return(pickup_id, dropoff_id)
+
+    return(weekday, pickup_id, dropoff_id, hour, minutes)
 
 
 
-#print(get_user_options())
+user_weekday ,user_puid, user_doid, user_hour, user_minutes = get_user_options()
 
 try :
     lines = sc.textFile('yellow_tripdata_2018-01_sample.csv') #read csv file (change this to the full dataset instead of just the sample) (this is local to my machine)
-    first_line = lines.first()
-    non_empty_lines = lines.filter(lambda line: len(line) > 0 and line != first_line)  #Filter out empty lines and the first line
-    #maybe we filter the lines that don't contain the options the user sent us like the PU_ID, DO_ID etc. 
 
-    organized_lines = non_empty_lines.map(lambda line: ((line.split(",")[2], line.split(",")[7], line.split(",")[8]), line.split(",")[16])) # (Date, PU_ID, DO_ID, Total_Ammount)
-    grouped = organized_lines.groupByKey().mapValues(list)
+    non_empty_lines = lines.filter(lambda line: len(line) > 0 and line != lines.first())
+    print(non_empty_lines.take(10))
+    #Filter out empty lines and the first line
+# and line.split(",")[7] == str(user_puid) and line.split(",")[8] == str(user_doid)
+    # print(non_empty_lines.count())
 
-    for a in grouped.take(10):
-        #See how to iterate over values
-        print(a)
+    # organized_lines = non_empty_lines.map(lambda line: ((line.split(",")[2], line.split(",")[7], line.split(",")[8]), line.split(",")[16])) # (Pickup-Date, PU_ID, DO_ID, Total_Ammount)
+    # grouped = organized_lines.groupByKey().mapValues(list)
+
+    # for a in grouped.take(10):
+        # print(a)
 
     # sc.stop()
 except:

@@ -112,6 +112,44 @@ def filter_dates(input_date_time, user_weekday, user_hour, user_minutes):
         return False
 
 
+def create_key_value(line):
+    """
+        Function that creates the key value structure for every line of interest
+
+        Params:
+            A non-filtered raw line of the CSV file
+    """
+    splitted = line.split(",")
+    pick_up_datetime = splitted[1]
+
+    week_day = (calendar.day_name[dt.strptime(splitted[1], '%Y-%m-%d %H:%M:%S').weekday()]).lower()
+    hour =  pick_up_datetime[11:13]
+    minute = pick_up_datetime[14:16]
+
+    pick_up_id = splitted[7]
+    dropoff_up_id = splitted[8]
+
+    key = (week_day, hour, pick_up_id, dropoff_up_id)
+
+    vendor_ID = splitted[0]
+    duration = get_duration(pick_up_datetime,splitted[2])
+    total_amount = float(splitted[16])
+
+    value = (vendor_ID, duration, total_amount)
+
+    return (key, value)
+
+
+
+def get_duration(pick_up_datetime, drop_off_datetime):
+    """
+        Get duration of trip in minutes from pick up and drop off times
+    """
+
+    d1 = time.mktime(dt.strptime(drop_off_datetime, '%Y-%m-%d %H:%M:%S').timetuple())
+    d2 = time.mktime(dt.strptime(pick_up_datetime, '%Y-%m-%d %H:%M:%S').timetuple())
+    return int((d1 - d2) / 60)
+
 
 def create_inverted_index(user_weekday = 1, user_puid = 41, user_doid = 24, user_hour = 00, user_minutes = 21, filename = 'yellow_tripdata_2018-01_sample.csv'):
     try :
@@ -127,11 +165,12 @@ def create_inverted_index(user_weekday = 1, user_puid = 41, user_doid = 24, user
         #Filter out lines that are not within the user's time radius
         lines_with_hour = lines_with_piud_doid.filter(lambda line: filter_dates(line.split(",")[1], user_weekday, user_hour, user_minutes))
 
-        # (Pickup-Date, PU_ID, DO_ID, Total_Ammount)
-        organized_lines = lines_with_hour.map(lambda line: ((line.split(",")[1], line.split(",")[7], line.split(",")[8]), line.split(",")[16])) 
+        # ((Pickup-Date, PU_ID, DO_ID), (vendorID, duration, Total_Ammount))
+        organized_lines = lines_with_hour.map(lambda line: create_key_value(line))
         
-        grouped = organized_lines.groupByKey().mapValues(list)
-
+        
+        grouped = organized_lines.reduceByKey(lambda accum, elem: (accum[0], accum[1] + elem[1], accum[2] + elem[2]))
+        
         for a in grouped.take(10):
             print(a)
 
@@ -145,5 +184,8 @@ def create_inverted_index(user_weekday = 1, user_puid = 41, user_doid = 24, user
 user_weekday, user_puid, user_doid, user_hour, user_minutes = get_user_options()
 
 create_inverted_index(int(user_weekday), user_puid, user_doid, int(user_hour), int(user_minutes))
+# create_inverted_index()
+
+# 1,2018-01-01 02:09:15,2018-01-01 02:17:47,1,2.50,1,N,246,239,1,9.5,0.5,0.5,2.15,0,0.3,12.95
 
 #info from first line: date- 2018-01-01 00:21:05      pickup_ID - 41     dropoff_ID - 24

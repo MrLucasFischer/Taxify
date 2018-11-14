@@ -129,13 +129,13 @@ def create_key_value(line):
     pick_up_id = splitted[7]
     dropoff_up_id = splitted[8]
 
-    key = (week_day, hour, pick_up_id, dropoff_up_id)
+    key = (week_day, hour, pick_up_id, dropoff_up_id)   #TODO DONT FORGET TO ADD MINUTES HERE
 
     vendor_ID = splitted[0]
     duration = get_duration(pick_up_datetime,splitted[2])
     total_amount = float(splitted[16])
-
-    value = (vendor_ID, duration, total_amount)
+    
+    value = (vendor_ID, [duration], [total_amount])
 
     return (key, value)
 
@@ -168,7 +168,8 @@ def create_inverted_index(user_weekday = 1, user_puid = 41, user_doid = 24, user
         # ((Pickup-Date, PU_ID, DO_ID), (vendorID, duration, Total_Ammount))
         organized_lines = lines_with_hour.map(lambda line: create_key_value(line))
         
-        
+        #Reduce everything by key returning a 3 column tuple
+        #(vendor_ID, list of durations, list of amounts)
         grouped = organized_lines.reduceByKey(lambda accum, elem: (accum[0], accum[1] + elem[1], accum[2] + elem[2]))
         
         for a in grouped.take(10):

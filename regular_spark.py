@@ -10,12 +10,6 @@ sc = pyspark.SparkContext('local[*]') #Create spark context
 #PU/DO zone ids range from 1 to 265, see taxi_zone_lookup.csv
 #date(position 1, maybe split datetime into weekday and time), PU_ID (position 7), DO_ID (position 8), totalammount (position 16)
 
-#Para converter a data que vem no ficheiro csv para um weekday fazer o seuginte
-#date_str = data que vem do ficheiro
-#date_obj = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
-#weekday = lower(calendar.day_name[date_obj.weekday()])
-
-
 #Main implementation
 
 def get_user_options():
@@ -23,6 +17,7 @@ def get_user_options():
         Function that gets all the users input for creating the inverted index.
         This function gets the desired weekday, time, pickup and dropoff zone
     """
+
     pickup_correct = False
     dropoff_correct = False
     weekday_correct = False
@@ -86,19 +81,26 @@ def get_user_options():
 
 def filter_dates(input_date_time, user_weekday, user_hour, user_minutes):
     """
-        Predicate function that returns true if input_date is within 30 minutes radius of user's desired time, false otherwise
+        Predicate function that returns true if input_date_time is within 30 minutes radius of user's desired time, false otherwise
 
         Params:
             input_date - String in YYYY-MM-DD HH:MM format
+            user_weekday - Integer ranging from 1 to 7 representing the weekday
+            user_hour - Integer representing the hour
+            user_minutes - Integer representing the minutes
+
+        Returns:
+            True if input_date_time is within 30 minutes radius of user's desired time, false otherwise
     """
-    #First check if input_date week day is at the maximum one more day than users desired time
+
+    #First check if input_date_time week day is at the maximum one more day than users desired time
     date_obj = dt.strptime(input_date_time, '%Y-%m-%d %H:%M:%S')
 
     input_weekday = date_obj.weekday()
-    user_weekday -= 1
+    user_weekday -= 1   #since input_weekday is between [0, 6] we need to subtract 1 to our user_weekday
 
-    input_date = input_date_time[0:10] #ver o substring
-    user_date = dt.strptime(input_date + " {}:{}:00".format(user_hour, user_minutes), '%Y-%m-%d %H:%M:%S')
+    input_date = input_date_time[0:10] #Getting the characters that represent the date
+    user_date = dt.strptime(input_date + " {}:{}:00".format(user_hour, user_minutes), '%Y-%m-%d %H:%M:%S') #Creating a new date time object with the date of the input date, and time of the user
 
     if(user_hour == 23 and user_minutes > 29):
         user_date = dt.strptime(input_date + " {}:{}:00".format(user_hour, user_minutes), '%Y-%m-%d %H:%M:%S') - datetime.timedelta(days = 1)
@@ -111,8 +113,7 @@ def filter_dates(input_date_time, user_weekday, user_hour, user_minutes):
 
 
 
-#TODO ADD default params to weekday, puid, doid, hour and minutes
-def create_inverted_index(user_weekday, user_puid, user_doid, user_hour, user_minutes, filename = 'yellow_tripdata_2018-01_sample.csv'):
+def create_inverted_index(user_weekday = 1, user_puid = 41, user_doid = 24, user_hour = 00, user_minutes = 21, filename = 'yellow_tripdata_2018-01_sample.csv'):
     try :
         lines = sc.textFile(filename) #read csv file (change this to the full dataset instead of just the sample) (this is local to my machine)
         first_line = lines.first()
@@ -126,7 +127,9 @@ def create_inverted_index(user_weekday, user_puid, user_doid, user_hour, user_mi
         #Filter out lines that are not within the user's time radius
         lines_with_hour = lines_with_piud_doid.filter(lambda line: filter_dates(line.split(",")[1], user_weekday, user_hour, user_minutes))
 
-        organized_lines = lines_with_hour.map(lambda line: ((line.split(",")[1], line.split(",")[7], line.split(",")[8]), line.split(",")[16])) # (Pickup-Date, PU_ID, DO_ID, Total_Ammount)
+        # (Pickup-Date, PU_ID, DO_ID, Total_Ammount)
+        organized_lines = lines_with_hour.map(lambda line: ((line.split(",")[1], line.split(",")[7], line.split(",")[8]), line.split(",")[16])) 
+        
         grouped = organized_lines.groupByKey().mapValues(list)
 
         for a in grouped.take(10):
@@ -137,8 +140,10 @@ def create_inverted_index(user_weekday, user_puid, user_doid, user_hour, user_mi
         traceback.print_exc()
         sc.stop()
 
+
+
 user_weekday, user_puid, user_doid, user_hour, user_minutes = get_user_options()
 
 create_inverted_index(int(user_weekday), user_puid, user_doid, int(user_hour), int(user_minutes))
 
-#2018-01-01 00:21:05 41 24
+#info from first line: date- 2018-01-01 00:21:05      pickup_ID - 41     dropoff_ID - 24

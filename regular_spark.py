@@ -4,8 +4,11 @@ import datetime
 from datetime import datetime as dt
 import calendar
 import time
+import numpy as np
+import pandas as pd
 
 sc = pyspark.SparkContext('local[*]') #Create spark context
+locations = pd.read_csv("taxi_zone_lookup.csv")
 
 #PU/DO zone ids range from 1 to 265, see taxi_zone_lookup.csv
 #date(position 1, maybe split datetime into weekday and time), PU_ID (position 7), DO_ID (position 8), totalammount (position 16)
@@ -131,11 +134,10 @@ def create_key_value(line):
 
     key = (week_day, hour, pick_up_id, dropoff_up_id)   #TODO DONT FORGET TO ADD MINUTES HERE
 
-    vendor_ID = splitted[0]
     duration = get_duration(pick_up_datetime,splitted[2])
     total_amount = float(splitted[16])
     
-    value = (vendor_ID, [duration], [total_amount])
+    value = ([duration], [total_amount])
 
     return (key, value)
 
@@ -170,10 +172,17 @@ def create_inverted_index(user_weekday = 1, user_puid = 41, user_doid = 24, user
         
         #Reduce everything by key returning a 3 column tuple
         #(vendor_ID, list of durations, list of amounts)
-        grouped = organized_lines.reduceByKey(lambda accum, elem: (accum[0], accum[1] + elem[1], accum[2] + elem[2]))
+        grouped = organized_lines.reduceByKey(lambda accum, elem: (accum[0] + elem[0], accum[1] + elem[1]))
         
-        for a in grouped.take(10):
-            print(a)
+        for k, v in grouped.collect():
+            pick_up_taxi_zones = locations.loc[locations["LocationID"] == int(k[2]), ["Zone", "Borough"]]
+            drop_off_taxi_zones = locations.loc[locations["LocationID"] == int(k[3]), ["Zone", "Borough"]]
+            average_duration = np.mean(v[0])
+            average_amount = np.mean(v[1])
+            
+            print("For {} at {}:{}, a trip from {}(ID: {}) to {}(ID: {}) takes an average of {} minutes and costs about {}$"\
+            .format( k[0], k[1], k[1], pick_up_taxi_zones.Zone.item() + ", " + pick_up_taxi_zones.Borough.item(), \
+            k[2], drop_off_taxi_zones.Zone.item() + ", " + drop_off_taxi_zones.Borough.item(), k[3], average_duration, average_amount))
 
         sc.stop()
     except:

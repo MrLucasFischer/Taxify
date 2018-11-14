@@ -33,17 +33,17 @@ def get_user_options():
 
     #Continue asking the user until he/she gives us a weekday
     while(not weekday_correct):
-        weekday = input("Please insert you weekday (1- Monday, 2- Tuesday, ..., 7- Sunday):")
+        weekday = input("\nPlease insert you weekday (1- Monday, 2- Tuesday, ..., 7- Sunday): ")
         try:
             if(int(weekday) >= 1 and int(weekday) <= 7):
                 weekday_correct = True
         except:
             #User didn't sent us a number
-            print("Please insert a number between 1 - 7\n")
+            print("\nPlease insert a number between 1 - 7\n")
 
     #Continue asking the user until he/she gives us an hour
     while(not time_correct):
-        time_input = input("Please insert the desired time (hh:mm):")
+        time_input = input("\nPlease insert the desired time (hh:mm): ")
         try:
             user_time = time.strptime(time_input, '%H:%M') # Check time is in proper format
             time_correct = True
@@ -52,31 +52,31 @@ def get_user_options():
 
         except:
             #User didn't sent us a number
-            print("Please insert a time in the format hh:mm where hh (00-23) and mm (00:59) \n")    
+            print("\nPlease insert a time in the format hh:mm where hh (00-23) and mm (00:59) \n")    
 
 
 
     #Continue asking the user until he/she gives us a number between 1 and 265
     while(not pickup_correct):
-        pickup_id = input("Please insert you Pick-Up location ID (1 - 265):")
+        pickup_id = input("\nPlease insert you Pick-Up location ID (1 - 265): ")
         try:
             if(int(pickup_id) >= 1 and int(pickup_id) <= 265):
                 pickup_correct = True
         except:
             #User didn't sent us a number
-            print("Please insert a number between 1 - 265\n")
+            print("\nPlease insert a number between 1 - 265\n")
 
         
 
     #Continue asking the user until he/she gives us a number between 1 and 265
     while(not dropoff_correct):
-        dropoff_id = input("Please insert you Drop-Off location ID (1 - 265):")
+        dropoff_id = input("\nPlease insert you Drop-Off location ID (1 - 265): ")
         try:
             if(int(dropoff_id) >= 1 and int(dropoff_id) <= 265):
                 dropoff_correct = True
         except:
             #User didn't sent us a number
-            print("Please insert a number between 1 - 265\n")
+            print("\nPlease insert a number between 1 - 265\n")
 
 
     return(weekday, pickup_id, dropoff_id, hour, minutes)
@@ -132,7 +132,7 @@ def create_key_value(line):
     pick_up_id = splitted[7]
     dropoff_up_id = splitted[8]
 
-    key = (week_day, hour, pick_up_id, dropoff_up_id)   #TODO DONT FORGET TO ADD MINUTES HERE
+    key = (week_day, pick_up_id, dropoff_up_id)
 
     duration = get_duration(pick_up_datetime,splitted[2])
     total_amount = float(splitted[16])
@@ -153,7 +153,7 @@ def get_duration(pick_up_datetime, drop_off_datetime):
     return int((d1 - d2) / 60)
 
 
-def create_inverted_index(user_weekday = 1, user_puid = 41, user_doid = 24, user_hour = 00, user_minutes = 21, filename = 'yellow_tripdata_2018-01_sample.csv'):
+def create_inverted_index(user_weekday = 1, user_puid = 41, user_doid = 24, user_hour = 0, user_minutes = 21, filename = 'yellow_tripdata_2018-01_sample.csv'):
     try :
         lines = sc.textFile(filename) #read csv file (change this to the full dataset instead of just the sample) (this is local to my machine)
         first_line = lines.first()
@@ -167,7 +167,7 @@ def create_inverted_index(user_weekday = 1, user_puid = 41, user_doid = 24, user
         #Filter out lines that are not within the user's time radius
         lines_with_hour = lines_with_piud_doid.filter(lambda line: filter_dates(line.split(",")[1], user_weekday, user_hour, user_minutes))
 
-        # ((Pickup-Date, PU_ID, DO_ID), (vendorID, duration, Total_Ammount))
+        # ((weekday, hour, minute, PU_ID, DO_ID), (vendorID, duration, Total_Ammount))
         organized_lines = lines_with_hour.map(lambda line: create_key_value(line))
         
         #Reduce everything by key returning a 3 column tuple
@@ -175,14 +175,13 @@ def create_inverted_index(user_weekday = 1, user_puid = 41, user_doid = 24, user
         grouped = organized_lines.reduceByKey(lambda accum, elem: (accum[0] + elem[0], accum[1] + elem[1]))
         
         for k, v in grouped.collect():
-            pick_up_taxi_zones = locations.loc[locations["LocationID"] == int(k[2]), ["Zone", "Borough"]]
-            drop_off_taxi_zones = locations.loc[locations["LocationID"] == int(k[3]), ["Zone", "Borough"]]
+            # pick_up_taxi_zones = locations.loc[locations["LocationID"] == int(k[1]), ["Zone", "Borough"]]
+            # drop_off_taxi_zones = locations.loc[locations["LocationID"] == int(k[2]), ["Zone", "Borough"]]
             average_duration = np.mean(v[0])
             average_amount = np.mean(v[1])
-            
-            print("For {} at {}:{}, a trip from {}(ID: {}) to {}(ID: {}) takes an average of {} minutes and costs about {}$"\
-            .format( k[0], k[1], k[1], pick_up_taxi_zones.Zone.item() + ", " + pick_up_taxi_zones.Borough.item(), \
-            k[2], drop_off_taxi_zones.Zone.item() + ", " + drop_off_taxi_zones.Borough.item(), k[3], average_duration, average_amount))
+            print(v)
+            print("\nFor {} at {0:02d}:{0:02d}, a trip from (ID: {}) to (ID: {}) takes an average of {} minutes and costs about ${}"\
+            .format(k[0], user_hour, user_minutes,k[1], k[2], average_duration, average_amount))
 
         sc.stop()
     except:
@@ -194,8 +193,5 @@ def create_inverted_index(user_weekday = 1, user_puid = 41, user_doid = 24, user
 user_weekday, user_puid, user_doid, user_hour, user_minutes = get_user_options()
 
 create_inverted_index(int(user_weekday), user_puid, user_doid, int(user_hour), int(user_minutes))
-# create_inverted_index()
 
-# 1,2018-01-01 02:09:15,2018-01-01 02:17:47,1,2.50,1,N,246,239,1,9.5,0.5,0.5,2.15,0,0.3,12.95
-
-#info from first line: date- 2018-01-01 00:21:05      pickup_ID - 41     dropoff_ID - 24
+#TODO VER AQUILO DO TAXI ZONE LOCATIONS

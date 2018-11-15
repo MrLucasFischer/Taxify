@@ -185,9 +185,6 @@ def create_inverted_index(user_weekday = 1, user_puid = 41, user_doid = 24, user
         grouped = organized_lines.reduceByKey(lambda accum, elem: (accum[0] + elem[0], accum[1] + elem[1]))
 
         grouped_with_averages = grouped.mapValues(lambda tup: (np.mean(tup[0]), np.mean(tup[1]))).take(10)
-        
-        for k,v in grouped_with_averages:
-            print(k,v)
 
         sc.stop()
     except:

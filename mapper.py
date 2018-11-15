@@ -82,8 +82,10 @@ user_weekday, user_puid, user_doid, user_hour, user_minutes = (1, 246, 239, 2, 8
 
 #Iterating every line from the input file
 is_first_line = True
-for line in sys.stdin:
 
+beforeT = dt.now()
+for line in sys.stdin:
+    
     if(not is_first_line): #Filtering out the first line
         if(len(line) > 0): #Filtering out non empty lines
 
@@ -96,7 +98,8 @@ for line in sys.stdin:
 
                         #((Weekday, pick-up ID, drop-off ID), ([duration], [total_amount]))
                         key,value = create_key_value(splitted_line)
-                        print("{}\t{}\t{}".format(key, value[0], value[1]))
+                        
+                        print("{}\t{}\t{}\t{}".format(key, value[0], value[1], beforeT))
                         
 
     else:

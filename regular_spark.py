@@ -5,10 +5,8 @@ from datetime import datetime as dt
 import calendar
 import time
 import numpy as np
-import pandas as pd
 
 sc = pyspark.SparkContext('local[*]') #Create spark context
-locations = pd.read_csv("taxi_zone_lookup.csv")
 
 #PU/DO zone ids range from 1 to 265, see taxi_zone_lookup.csv
 #date(position 1, maybe split datetime into weekday and time), PU_ID (position 7), DO_ID (position 8), totalammount (position 16)
@@ -154,6 +152,18 @@ def get_duration(pick_up_datetime, drop_off_datetime):
 
 
 def create_inverted_index(user_weekday = 1, user_puid = 41, user_doid = 24, user_hour = 0, user_minutes = 21, filename = 'yellow_tripdata_2018-01_sample.csv'):
+    """
+        Function that creates the inverted index. This function holds the main implementation of spark code to create the inverted index
+
+        Params:
+            user_weekday - An integer ranging from 1 to 7 representing the day of the week chosen by the user
+            user_puid - An integer ranging from 1 to 265 representing the pick-up zone ID chosen by the user
+            user_doid - An integer ranging from 1 to 265 representing the drop off zone ID chosen by the user
+            user_hour - An integer representing the hour chosen by the user
+            user_hour - An integer representing the minutes chosen by the user
+            filename - Name of the file to read the information from
+    """
+
     try :
         lines = sc.textFile(filename) #read csv file (change this to the full dataset instead of just the sample) (this is local to my machine)
         first_line = lines.first()
@@ -167,21 +177,17 @@ def create_inverted_index(user_weekday = 1, user_puid = 41, user_doid = 24, user
         #Filter out lines that are not within the user's time radius
         lines_with_hour = lines_with_piud_doid.filter(lambda line: filter_dates(line.split(",")[1], user_weekday, user_hour, user_minutes))
 
-        # ((weekday, hour, minute, PU_ID, DO_ID), (vendorID, duration, Total_Ammount))
+        # ((weekday, hour, minute, PU_ID, DO_ID), (duration, Total_Ammount))
         organized_lines = lines_with_hour.map(lambda line: create_key_value(line))
         
         #Reduce everything by key returning a 3 column tuple
         #(vendor_ID, list of durations, list of amounts)
         grouped = organized_lines.reduceByKey(lambda accum, elem: (accum[0] + elem[0], accum[1] + elem[1]))
+
+        grouped_with_averages = grouped.mapValues(lambda tup: (np.mean(tup[0]), np.mean(tup[1]))).take(10)
         
-        for k, v in grouped.collect():
-            # pick_up_taxi_zones = locations.loc[locations["LocationID"] == int(k[1]), ["Zone", "Borough"]]
-            # drop_off_taxi_zones = locations.loc[locations["LocationID"] == int(k[2]), ["Zone", "Borough"]]
-            average_duration = np.mean(v[0])
-            average_amount = np.mean(v[1])
-            print(v)
-            print("\nFor {} at {0:02d}:{0:02d}, a trip from (ID: {}) to (ID: {}) takes an average of {} minutes and costs about ${}"\
-            .format(k[0], user_hour, user_minutes,k[1], k[2], average_duration, average_amount))
+        for k,v in grouped_with_averages:
+            print(k,v)
 
         sc.stop()
     except:
@@ -193,5 +199,3 @@ def create_inverted_index(user_weekday = 1, user_puid = 41, user_doid = 24, user
 user_weekday, user_puid, user_doid, user_hour, user_minutes = get_user_options()
 
 create_inverted_index(int(user_weekday), user_puid, user_doid, int(user_hour), int(user_minutes))
-
-#TODO VER AQUILO DO TAXI ZONE LOCATIONS

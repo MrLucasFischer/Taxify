@@ -170,16 +170,23 @@ def create_inverted_index(user_weekday = 1, user_puid = 41, user_doid = 24, user
         
         #Filtering out the first line, empty lines
         non_empty_lines = lines.filter(lambda line: len(line) > 0 and line != first_line)
+
+        # Select fields with pickup_datetime, dropoff_datetime, pickup_id, dropoff_id and amount
         fields = non_empty_lines.map(lambda line : Row(pickup_datetime = line.split(',')[1], dropoff_datetime = line.split(',')[2], pickup_id = line.split(',')[7], dropoff_id = line.split(',')[8], amount = line.split(',')[16]));
+        
+        # Transform fields to dataframe
         fields_df = spark.createDataFrame(fields)
+
+        #Filter out rows that don't match user's pickup-ID and dropoff-ID
         filtered = fields_df.where((col("pickup_id") == str(user_puid)) & (col("dropoff_id") == str(user_doid)))
         
+        # IDF that returns true for all rows that match time radius
         filter_udf = udf(lambda r: filter_dates(r, user_weekday, user_hour, user_minutes), BooleanType())
 
         filter_test = filtered.filter(filter_udf(filtered.pickup_datetime))
         filter_test.show(10)
 
-        #Filter out lines that don't match user's pickup-ID and dropoff-ID
+        
         # lines_with_piud_doid = nocoln_empty_lines.filter(lambda line: line.split(",")[7] == str(user_puid) and line.split(",")[8] == str(user_doid))
 
         # # My attempt to transform above code to use dataFrames

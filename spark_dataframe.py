@@ -166,10 +166,18 @@ def create_inverted_index(user_weekday = 1, user_puid = 41, user_doid = 24, user
         #Filtering out the first line, empty lines
         non_empty_lines = lines.filter(lambda line: len(line) > 0 and line != first_line)
 
-
-
         #Filter out lines that don't match user's pickup-ID and dropoff-ID
         lines_with_piud_doid = non_empty_lines.filter(lambda line: line.split(",")[7] == str(user_puid) and line.split(",")[8] == str(user_doid))
+
+        # # My attempt to transform above code to use dataFrames
+        # # Get fields from lines
+        # fields_in_lines = non_empty_lines.map( lambda line : Row( pu_dt = line.split(',')[1], do_dt = line.split(',')[2], pu_id = line.split(',')[7], do_id = line.split(',')[8], amount = line.split(',')[16] ));
+        # # Create dataFrame from non-empty splitted lines
+        # df_pu_do_dt_id_and_amount = spark.createDataFrame( fields_in_lines )
+        # df_pu_do_dt_id_and_amount.show(10)
+        # #Filter out rows that don't match user's pickup-ID and dropoff-ID from dataFrame
+        # df_pu_do_dt_id_and_amount = df_pu_do_dt_id_and_amount.where( col('pu_id') == str(user_puid) ).where( col('do_id') == str(user_doid) )
+        # df_pu_do_dt_id_and_amount.show(10)
 
         #Filter out lines that are not within the user's time radius
         lines_with_hour = lines_with_piud_doid.filter(lambda line: filter_dates(line.split(",")[1], user_weekday, user_hour, user_minutes))

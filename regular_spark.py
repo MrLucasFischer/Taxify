@@ -124,13 +124,12 @@ def create_key_value(line):
     pick_up_datetime = splitted[1]
 
     week_day = (calendar.day_name[dt.strptime(splitted[1], '%Y-%m-%d %H:%M:%S').weekday()]).lower()
-    hour =  pick_up_datetime[11:13]
-    minute = pick_up_datetime[14:16]
+    time = pick_up_datetime[11:13]
 
     pick_up_id = splitted[7]
     dropoff_up_id = splitted[8]
 
-    key = (week_day, pick_up_id, dropoff_up_id)
+    key = (week_day, time, pick_up_id, dropoff_up_id)
 
     duration = get_duration(pick_up_datetime,splitted[2])
     total_amount = float(splitted[16])
@@ -170,21 +169,17 @@ def create_inverted_index(user_weekday = 1, user_puid = 41, user_doid = 24, user
 
         #Filtering out the first line, empty lines
         non_empty_lines = lines.filter(lambda line: len(line) > 0 and line != first_line)
-
-        #Filter out lines that don't match user's pickup-ID and dropoff-ID
-        lines_with_piud_doid = non_empty_lines.filter(lambda line: line.split(",")[7] == str(user_puid) and line.split(",")[8] == str(user_doid))
-
-        #Filter out lines that are not within the user's time radius
-        lines_with_hour = lines_with_piud_doid.filter(lambda line: filter_dates(line.split(",")[1], user_weekday, user_hour, user_minutes))
-
-        # ((weekday, hour, minute, PU_ID, DO_ID), (duration, Total_Ammount))
-        organized_lines = lines_with_hour.map(lambda line: create_key_value(line))
+        
+        # ((weekday, time, PU_ID, DO_ID), (duration, Total_Ammount))
+        organized_lines = non_empty_lines.map(lambda line: create_key_value(line))
         
         #Reduce everything by key returning a 3 column tuple
         #(vendor_ID, list of durations, list of amounts)
         grouped = organized_lines.reduceByKey(lambda accum, elem: (accum[0] + elem[0], accum[1] + elem[1]))
 
-        grouped_with_averages = grouped.mapValues(lambda tup: (np.mean(tup[0]), np.mean(tup[1]))).take(10)
+        grouped_with_averages = grouped.mapValues(lambda tup: (np.mean(tup[0]), np.mean(tup[1]))).collect()
+        for k, v in grouped_with_averages:
+            print(k,v)
 
         sc.stop()
     except:
@@ -193,6 +188,7 @@ def create_inverted_index(user_weekday = 1, user_puid = 41, user_doid = 24, user
 
 
 
-user_weekday, user_puid, user_doid, user_hour, user_minutes = get_user_options()
+# user_weekday, user_puid, user_doid, user_hour, user_minutes = get_user_options()
 
-create_inverted_index(int(user_weekday), user_puid, user_doid, int(user_hour), int(user_minutes))
+# create_inverted_index(int(user_weekday), user_puid, user_doid, int(user_hour), int(user_minutes))
+create_inverted_index()

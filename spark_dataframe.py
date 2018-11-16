@@ -1,6 +1,7 @@
 from pyspark.sql import *
 from pyspark.sql.types import *
 from pyspark.sql.functions import *
+from pyspark.sql.functions import sum as sum_
 from pyspark import SparkContext
 import traceback
 import datetime
@@ -12,8 +13,6 @@ import pandas as pd
 
 spark = SparkSession.builder.master('local[*]').appName('taxify').getOrCreate()
 sc = spark.sparkContext
-
-locations = pd.read_csv("taxi_zone_lookup.csv")
 
 #PU/DO zone ids range from 1 to 265, see taxi_zone_lookup.csv
 #date(position 1, maybe split datetime into weekday and time), PU_ID (position 7), DO_ID (position 8), totalammount (position 16)
@@ -158,65 +157,58 @@ def get_duration(pick_up_datetime, drop_off_datetime):
     return int((d1 - d2) / 60)
 
 
-def test(input_date_time):
-    print(input_date_time)
-    return ""
+
+def convert_to_weekday(date):
+    date_obj = dt.strptime(date, '%Y-%m-%d %H:%M:%S')
+    return (calendar.day_name[date_obj.weekday()]).lower()
+
+def convert_to_hour(date):
+    return date[11:13]
 
 
 def create_inverted_index(user_weekday = 1, user_puid = 41, user_doid = 24, user_hour = 0, user_minutes = 21, filename = 'yellow_tripdata_2018-01_sample.csv'):
     try :
         lines = sc.textFile(filename) #read csv file (change this to the full dataset instead of just the sample) (this is local to my machine)
         first_line = lines.first()
+
+        #USER DEFINED FUNCTION CREATION
+
+        # UDF that returns true for all rows that match time radius
+        filter_udf = udf(lambda pickup_date_time: filter_dates(pickup_date_time, user_weekday, user_hour, user_minutes), BooleanType())
+
+        # convert_to_weekday_udf = udf(lambda pickup_date: convert_to_weekday(pickup_date), StringType())
+        spark.udf.register("convert_to_weekday_udf", lambda pickup_date: convert_to_weekday(pickup_date), StringType())
+        spark.udf.register("convert_to_hour_udf", lambda pickup_date: convert_to_hour(pickup_date), StringType())
+        spark.udf.register("convert_to_duration", lambda pickup_date, dropoff_date: get_duration(pickup_date, dropoff_date), IntegerType())
+
+
+        # convert_to_hour_udf = udf(lambda pickup_date: convert_to_hour(pickup_date), StringType())
+
+        #UDF to map every rows pickup and dropoff date time to the difference between them
+        # duration_mapper_udf = udf(lambda pickup_date, dropoff_date: get_duration(pickup_date, dropoff_date), IntegerType())
         
         #Filtering out the first line, empty lines
         non_empty_lines = lines.filter(lambda line: len(line) > 0 and line != first_line)
 
-        # Select fields with pickup_datetime, dropoff_datetime, pickup_id, dropoff_id and amount
+        # Create a Row object with pickup_datetime, dropoff_datetime, pickup_id, dropoff_id and amount
         fields = non_empty_lines.map(lambda line : Row(pickup_datetime = line.split(',')[1], dropoff_datetime = line.split(',')[2], pickup_id = line.split(',')[7], dropoff_id = line.split(',')[8], amount = line.split(',')[16]));
         
         # Transform fields to dataframe
         fields_df = spark.createDataFrame(fields)
 
-        #Filter out rows that don't match user's pickup-ID and dropoff-ID
-        filtered = fields_df.where((col("pickup_id") == str(user_puid)) & (col("dropoff_id") == str(user_doid)))
-        
-        # IDF that returns true for all rows that match time radius
-        filter_udf = udf(lambda r: filter_dates(r, user_weekday, user_hour, user_minutes), BooleanType())
+        fields_df.createOrReplaceTempView("fields_table")
 
-        filter_test = filtered.filter(filter_udf(filtered.pickup_datetime))
-        filter_test.show(10)
+        inverted_index = spark.sql("SELECT convert_to_weekday_udf(pickup_datetime) AS weekday, convert_to_hour_udf(pickup_datetime) AS hour, pickup_id, dropoff_id, AVG(convert_to_duration(pickup_datetime, dropoff_datetime)) AS average_duration , AVG(amount) AS average_amount FROM fields_table GROUP BY weekday, hour, pickup_id, dropoff_id")
+        inverted_index.show(10)
 
-        
-        # lines_with_piud_doid = nocoln_empty_lines.filter(lambda line: line.split(",")[7] == str(user_puid) and line.split(",")[8] == str(user_doid))
+        # weekday_df = fields_df.withColumn("weekday", Column())
 
-        # # My attempt to transform above code to use dataFrames
-        # # Get fields from lines
-        # fields_in_lines = non_empty_lines.map( lambda line : Row( pu_dt = line.split(',')[1], do_dt = line.split(',')[2], pu_id = line.split(',')[7], do_id = line.split(',')[8], amount = line.split(',')[16] ));
-        # # Create dataFrame from non-empty splitted lines
-        # df_pu_do_dt_id_and_amount = spark.createDataFrame( fields_in_lines )
-        # df_pu_do_dt_id_and_amount.show(10)
-        # #Filter out rows that don't match user's pickup-ID and dropoff-ID from dataFrame
-        # df_pu_do_dt_id_and_amount = df_pu_do_dt_id_and_amount.where( col('pu_id') == str(user_puid)).where( col('do_id') == str(user_doid) )
-        # df_pu_do_dt_id_and_amount.show(10)
+        # #Create a new column by mapping pickup_da
+        # duration_df = weekday_df.withColumn("duration", duration_mapper_udf(weekday_df.pickup_datetime, weekday_df.dropoff_datetime)).drop("pickup_datetime", "dropoff_datetime")
 
-        #Filter out lines that are not within the user's time radius
-        # lines_with_hour = lines_with_piud_doid.filter(lambda line: filter_dates(line.split(",")[1], user_weekday, user_hour, user_minutes))
+        # grouped_df = duration_df.groupBy("weekday", "pickup_id", "dropoff_id").agg({"duration": "avg", "amount": "avg"}).withColumnRenamed("avg(duration)", "average duration").withColumnRenamed("avg(amount)", "average amount")
 
-        # ((weekday, hour, minute, PU_ID, DO_ID), (vendorID, duration, Total_Ammount))
-        # organized_lines = lines_with_hour.map(lambda line: create_key_value(line))
-        
-        #Reduce everything by key returning a 3 column tuple
-        #(vendor_ID, list of durations, list of amounts)
-        # grouped = organized_lines.reduceByKey(lambda accum, elem: (accum[0] + elem[0], accum[1] + elem[1]))
-        
-        # for k, v in grouped.collect():
-        #     # pick_up_taxi_zones = locations.loc[locations["LocationID"] == int(k[1]), ["Zone", "Borough"]]
-        #     # drop_off_taxi_zones = locations.loc[locations["LocationID"] == int(k[2]), ["Zone", "Borough"]]
-        #     average_duration = np.mean(v[0])
-        #     average_amount = np.mean(v[1])
-        #     print(v)
-        #     print("\nFor {} at {0:02d}:{0:02d}, a trip from (ID: {}) to (ID: {}) takes an average of {} minutes and costs about ${}"\
-        #     .format(k[0], user_hour, user_minutes,k[1], k[2], average_duration, average_amount))
+        # grouped_df.show(10)
 
         sc.stop()
     except:

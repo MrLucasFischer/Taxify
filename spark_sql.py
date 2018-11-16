@@ -1,15 +1,12 @@
 from pyspark.sql import *
 from pyspark.sql.types import *
 from pyspark.sql.functions import *
-from pyspark.sql.functions import sum as sum_
 from pyspark import SparkContext
 import traceback
 import datetime
 from datetime import datetime as dt
 import calendar
 import time
-import numpy as np
-import pandas as pd
 
 spark = SparkSession.builder.master('local[*]').appName('taxify').getOrCreate()
 sc = spark.sparkContext
@@ -49,6 +46,8 @@ def convert_to_hour(date):
 
 def create_inverted_index(user_weekday = 1, user_puid = 41, user_doid = 24, user_hour = 0, user_minutes = 21, filename = 'yellow_tripdata_2018-01_sample.csv'):
     try :
+        beforeT = dt.now()
+
         lines = sc.textFile(filename) #read csv file (change this to the full dataset instead of just the sample) (this is local to my machine)
         first_line = lines.first()
 
@@ -56,7 +55,7 @@ def create_inverted_index(user_weekday = 1, user_puid = 41, user_doid = 24, user
 
         # convert_to_weekday_udf = udf(lambda pickup_date: convert_to_weekday(pickup_date), StringType())
         spark.udf.register("convert_to_weekday_udf", lambda pickup_date: convert_to_weekday(pickup_date), StringType())
-        spark.udf.register("convert_to_hour_udf", lambda pickup_date: convert_to_hour(pickup_date), StringType())
+        spark.udf.register("convert_to_hour_udf", lambda pickup_date: pickup_date[11:13], StringType())
         spark.udf.register("convert_to_duration", lambda pickup_date, dropoff_date: get_duration(pickup_date, dropoff_date), IntegerType())
 
         #Filtering out the first line, empty lines
@@ -72,17 +71,30 @@ def create_inverted_index(user_weekday = 1, user_puid = 41, user_doid = 24, user
         fields_df.createOrReplaceTempView("fields_table")
 
         inverted_index = spark.sql(
-            """SELECT convert_to_weekday_udf(pickup_datetime) AS weekday,
-             convert_to_hour_udf(pickup_datetime) AS hour,
-             pickup_id,
-             dropoff_id,
-             AVG(convert_to_duration(pickup_datetime, dropoff_datetime)) AS average_duration,
-             AVG(amount) AS average_amount 
-             FROM fields_table 
-             GROUP BY weekday, hour, pickup_id, dropoff_id"""
+            """
+            SELECT 
+                convert_to_weekday_udf(pickup_datetime) AS weekday,
+                convert_to_hour_udf(pickup_datetime) AS hour,
+                pickup_id,
+                dropoff_id,
+                AVG(convert_to_duration(pickup_datetime, dropoff_datetime)) AS average_duration,
+                AVG(amount) AS average_amount 
+            FROM 
+                fields_table 
+            GROUP BY 
+                weekday,
+                hour,
+                pickup_id,
+                dropoff_id
+            """
         )
-        
-        inverted_index.show(10)
+
+        inverted_index.collect()
+
+        afterT = dt.now()
+        diffT = afterT - beforeT
+        max_time = (diffT.microseconds / 1000)
+        print("Execution time {}".format(max_time))
 
         sc.stop()
     except:

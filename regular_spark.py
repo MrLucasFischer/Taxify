@@ -164,7 +164,8 @@ def create_inverted_index(user_weekday = 1, user_puid = 41, user_doid = 24, user
     """
 
     try :
-        lines = sc.textFile(filename) #read csv file (change this to the full dataset instead of just the sample) (this is local to my machine)
+        beforeT = dt.now()
+        lines = sc.textFile(filename) #read csv file (change this to the full dataset instead of just the sample)
         first_line = lines.first()
 
         #Filtering out the first line, empty lines
@@ -177,9 +178,13 @@ def create_inverted_index(user_weekday = 1, user_puid = 41, user_doid = 24, user
         #(vendor_ID, list of durations, list of amounts)
         grouped = organized_lines.reduceByKey(lambda accum, elem: (accum[0] + elem[0], accum[1] + elem[1]))
 
+        #Obtain the average of the 
         grouped_with_averages = grouped.mapValues(lambda tup: (np.mean(tup[0]), np.mean(tup[1]))).collect()
-        for k, v in grouped_with_averages:
-            print(k,v)
+
+        afterT = dt.now()
+        diffT = afterT - beforeT
+        max_time = (diffT.microseconds / 1000)
+        print("Execution time {}".format(max_time))
 
         sc.stop()
     except:

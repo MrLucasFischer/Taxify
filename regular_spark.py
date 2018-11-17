@@ -11,7 +11,6 @@ spark = SparkSession.builder.master('local[*]').appName('taxify').getOrCreate()
 sc = spark.sparkContext
 
 #PU/DO zone ids range from 1 to 265, see taxi_zone_lookup.csv
-#date(position 1, maybe split datetime into weekday and time), PU_ID (position 7), DO_ID (position 8), totalammount (position 16)
 
 #Main implementation
 

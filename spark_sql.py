@@ -12,7 +12,6 @@ spark = SparkSession.builder.master('local[*]').appName('taxify').getOrCreate()
 sc = spark.sparkContext
 
 #PU/DO zone ids range from 1 to 265, see taxi_zone_lookup.csv
-#date(position 1, maybe split datetime into weekday and time), PU_ID (position 7), DO_ID (position 8), totalammount (position 16)
 
 #Main implementation
 
@@ -44,9 +43,9 @@ def convert_to_hour(date):
 
 
 
-def create_inverted_index(user_weekday = 1, user_puid = 41, user_doid = 24, user_hour = 0, user_minutes = 21, filename = 'yellow_tripdata_2018-01_sample.csv'):
+def create_inverted_index(filename = 'yellow_tripdata_2018-01_sample.csv'):
     try :
-        beforeT = dt.now()
+        time_before = dt.now()
 
         lines = sc.textFile(filename) #read csv file (change this to the full dataset instead of just the sample) (this is local to my machine)
         first_line = lines.first()
@@ -89,22 +88,14 @@ def create_inverted_index(user_weekday = 1, user_puid = 41, user_doid = 24, user
             """
         )
 
-        inverted_index.collect()
-
-        afterT = dt.now()
-        diffT = afterT - beforeT
-        max_time = (diffT.microseconds / 1000)
-        print("Execution time {}".format(max_time))
+        inverted_index.rdd.saveAsTextFile("spark_sql_results/inverted_index.txt")
+        time_after = dt.now()
+        seconds = (time_after - time_before).total_seconds()
+        print("Execution time {} seconds".format(seconds))
 
         sc.stop()
     except:
         traceback.print_exc()
         sc.stop()
-
-
-
-# user_weekday, user_puid, user_doid, user_hour, user_minutes = get_user_options()
-
-# create_inverted_index(int(user_weekday), user_puid, user_doid, int(user_hour), int(user_minutes))
 
 create_inverted_index()

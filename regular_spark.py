@@ -51,7 +51,7 @@ def get_duration(pick_up_datetime, drop_off_datetime):
     return int((d1 - d2) / 60)
 
 
-def create_inverted_index(filename = 'yellow_tripdata_2018-01_sample.csv'):
+def create_inverted_index(filename = 'yellow_tripdata_2018-01.csv'):
     """
         Function that creates the inverted index. This function holds the main implementation of spark code to create the inverted index
 

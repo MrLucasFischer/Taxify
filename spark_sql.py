@@ -43,7 +43,7 @@ def convert_to_hour(date):
 
 
 
-def create_inverted_index(filename = 'yellow_tripdata_2018-01_sample.csv'):
+def create_inverted_index(filename = 'yellow_tripdata_2018-01.csv'):
     try :
         time_before = dt.now()
 

@@ -1,7 +1,12 @@
 import pyspark
-from pyspark.sql import SparkSession
 import traceback
 import calendar
+import datetime
+from pyspark.sql import SparkSession
+from datetime import datetime as dt
+from pyspark.sql import *
+from pyspark.sql.types import *
+from pyspark.sql.functions import *
 
 spark = SparkSession.builder.master('local[*]').appName('taxify').getOrCreate()
 sc = spark.sparkContext
@@ -84,28 +89,40 @@ def transform_line(line):
         Function that transforms every String line in the inverted index into a searchable array
     """
     stripped_line = line.replace("(", "").replace(")", "").replace(" ", "").replace("\'", "")
-    return stripped_line.split(",")
+    splitted = stripped_line.split(",")
+    return Row(weekday = splitted[0], hour = int(splitted[1]), pu_id = splitted[2], do_id = splitted[3], duration = splitted[4], amount = splitted[5])
 
 
     
-def search_index(user_weekday = 1, user_puid = "41", user_doid = "24", user_hour = 0, filename = "spark_rdd_results/inverted_index"):
+def search_index(user_weekday = 1, user_puid = "41", user_doid = "24", user_hour = 0, filename = "spark_sql_results/inverted_index"):
     try:
         lines = sc.textFile(filename) #read the inverted index created previously
         
         #Transform each line into an array
-        transform_lines = lines.map(lambda line: transform_line(line)) 
+        transformed_lines_df = spark.createDataFrame(lines.map(lambda line: transform_line(line)))
+
+        transformed_lines_df.createOrReplaceTempView("Inverted_Index")
+
+        user_weekday = (calendar.day_name[user_weekday - 1]).lower()
         
-        #Filter out the lines that don't match the user's desired pick up zone and drop off zone
-        lines_with_puid_doid = transform_lines.filter(lambda arr: arr[2] == str(user_puid) and arr[3] == str(user_doid))
-        
-        #Filter out the lines that don't match the user's desired weekday
-        lines_with_weekday = lines_with_puid_doid.filter(lambda arr: arr[0] == (calendar.day_name[user_weekday - 1]).lower())
-        
-        #Filter out the lines that don't match user's desired hour
-        lines_with_hour = lines_with_weekday.filter(lambda arr: int(arr[1]) == user_hour)
-        
-        for result in lines_with_hour.collect():
-            print(result)
+        spark.sql(
+            """
+                SELECT
+                    weekday,
+                    hour,
+                    pu_id,
+                    do_id,
+                    duration,
+                    amount
+                FROM
+                    Inverted_Index
+                WHERE
+                    pu_id = '{}' AND
+                    do_id = '{}' AND
+                    weekday = '{}' AND
+                    hour = {}
+            """.format(user_puid, user_doid, user_weekday, user_hour)
+        ).show(10)
 
     except:
         traceback.print_exc()
@@ -113,4 +130,4 @@ def search_index(user_weekday = 1, user_puid = "41", user_doid = "24", user_hour
 
 user_weekday, user_puid, user_doid, user_hour = get_user_options()
 
-search_index(int(user_weekday), user_puid, user_doid, int(user_hour))
+search_index(int(user_weekday), str(user_puid), str(user_doid), int(user_hour))

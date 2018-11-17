@@ -88,7 +88,7 @@ def create_inverted_index(filename = 'yellow_tripdata_2018-01_sample.csv'):
             """
         )
 
-        inverted_index.rdd.saveAsTextFile("spark_sql_results/inverted_index.txt")
+        inverted_index.rdd.map(lambda row: ((row.weekday, row.hour, row.pickup_id, row.dropoff_id), (row.average_duration, row.average_amount)) ).saveAsTextFile("spark_sql_results/inverted_index")
         time_after = dt.now()
         seconds = (time_after - time_before).total_seconds()
         print("Execution time {} seconds".format(seconds))

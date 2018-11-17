@@ -82,7 +82,7 @@ def create_inverted_index(filename = 'yellow_tripdata_2018-01_sample.csv'):
         #Obtain the average of the 
         grouped_with_averages = grouped.mapValues(lambda tup: (np.mean(tup[0]), np.mean(tup[1])))
         
-        grouped_with_averages.saveAsTextFile("spark_rdd_results/inverted_index.txt")
+        grouped_with_averages.saveAsTextFile("spark_rdd_results/inverted_index")
 
         time_after = dt.now()
         seconds = (time_after - time_before).total_seconds()
